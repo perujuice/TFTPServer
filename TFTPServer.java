@@ -116,13 +116,15 @@ public class TFTPServer {
 			// Optionally, convert to InetSocketAddress if needed for more specific methods
 			InetSocketAddress inetSocketAddress = (InetSocketAddress) socketAddress;
 
+			System.out.println(socketAddress);
+
 			// Now you can use inetSocketAddress or clientAddress as needed
-			return socketAddress;
+			return inetSocketAddress;
 
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-
+		return null;
 	}
 
 	/**
@@ -134,7 +136,9 @@ public class TFTPServer {
 	 */
 	private int ParseRQ(byte[] buf, StringBuffer requestedFile) {
 		// See "TFTP Formats" in TFTP specification for the RRQ/WRQ request contents
-
+		// Dummy implementation for compilation. Replace with actual logic.
+		int opcode = OP_ERR; // Just a placeholder value.
+		// Parse request here...
 		return opcode;
 	}
 
@@ -147,34 +151,28 @@ public class TFTPServer {
 	 */
 	private void HandleRQ(DatagramSocket sendSocket, String requestedFile, int opcode) 
 	{		
-		if(opcode == OP_RRQ)
-		{
-			// See "TFTP Formats" in TFTP specification for the DATA and ACK packet contents
+		String params = ""; // Placeholder for compilation
+		if (opcode == OP_RRQ) {
+			// Placeholder implementation
 			boolean result = send_DATA_receive_ACK(params);
-		}
-		else if (opcode == OP_WRQ) 
-		{
+		} else if (opcode == OP_WRQ) {
+			// Placeholder implementation
 			boolean result = receive_DATA_send_ACK(params);
-		}
-		else 
-		{
+		} else {
 			System.err.println("Invalid request. Sending an error packet.");
-			// See "TFTP Formats" in TFTP specification for the ERROR packet contents
 			send_ERR(params);
-			return;
 		}		
 	}
 
 	/**
 	To be implemented
 	*/
-	private boolean send_DATA_receive_ACK(params)
+	private boolean send_DATA_receive_ACK(String params)
 	{return true;}
 
-	private boolean receive_DATA_send_ACK(params)
+	private boolean receive_DATA_send_ACK(String params)
 	{return true;}
 
-	private void send_ERR(params)
+	private void send_ERR(String params)
 	{}
-	
 }
