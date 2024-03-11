@@ -108,6 +108,7 @@ public class TFTPServer {
 		try {
 			// Wait for an incoming packet
 			socket.receive(receivePacket);
+
 			SocketAddress socketAddress = receivePacket.getSocketAddress();
 			InetSocketAddress inetSocketAddress = (InetSocketAddress) socketAddress;
 			System.out.println(socketAddress);
@@ -181,7 +182,32 @@ public class TFTPServer {
 	To be implemented
 	*/
 	private boolean send_DATA_receive_ACK(DatagramSocket sendSocket, InetSocketAddress clientAddress, String requestedFile) {
-
+		try {
+			System.out.println(requestedFile);
+			// Construct the full path to the requested file
+			String filePath = requestedFile; // Assuming requestedFile already contains the filename
+			// Read the file into blocks
+			byte[][] fileBlocks = readFileInBlocks(filePath);
+	
+			// Send each block and wait for ACK
+			for (int i = 0; i < fileBlocks.length; i++) {
+				// Send the current block and wait for an ACK
+				boolean ackReceived = sendBlockAndWaitForAck(sendSocket, clientAddress, fileBlocks[i], i + 1);
+				System.out.println("sent block");
+				if (!ackReceived) {
+					// If ACK wasn't received, log the error and return false
+					System.err.println("Failed to receive ACK for block " + (i + 1));
+					return false;
+				}
+			}
+	
+			// If all blocks were sent and acknowledged, return true
+			return true;
+		} catch (IOException e) {
+			// Log any IO Exceptions and return false
+			e.printStackTrace();
+			return false;
+		}
 	}
 
 	private boolean receive_DATA_send_ACK(String params)
@@ -190,5 +216,87 @@ public class TFTPServer {
 	private void send_ERR(String params)
 	{}
 
+	 /**
+     * Reads a file and divides it into blocks of byte arrays.
+     *
+     * @param filePath The path to the .bin file.
+     * @return An array of byte arrays, each representing a block of the file.
+     * @throws IOException If an I/O error occurs reading from the file.
+     */
+    private byte[][] readFileInBlocks(String filePath) throws IOException {
+        File file = new File(filePath);
+        FileInputStream fis = new FileInputStream(file);
+        
+        int blockSize = 512; // Size of each block
+        List<byte[]> blocks = new ArrayList<>();
+        
+        byte[] buffer = new byte[blockSize];
+        int bytesRead;
+        
+        while ((bytesRead = fis.read(buffer)) != -1) {
+            if (bytesRead < blockSize) {
+                byte[] lastBlock = new byte[bytesRead];
+                System.arraycopy(buffer, 0, lastBlock, 0, bytesRead);
+                blocks.add(lastBlock);
+            } else {
+                blocks.add(buffer.clone());
+            }
+        }
+        
+        fis.close();
+        
+        byte[][] blocksArray = new byte[blocks.size()][];
+        blocks.toArray(blocksArray);
+        
+        return blocksArray;
+    }
 
+	/**
+     * Sends a single block of data to the client and waits for an ACK.
+     * Timeout and retry logic should be implemented to handle transmission reliability.
+     *
+     * @param sendSocket The socket used to send and receive packets.
+     * @param clientAddress The address and port of the client.
+     * @param dataBlock The data block to be sent.
+     * @param blockNumber The block number for the current data block.
+     * @return true if the block was sent and acknowledged, false otherwise.
+     */
+    private boolean sendBlockAndWaitForAck(DatagramSocket sendSocket, InetSocketAddress clientAddress, byte[] dataBlock, int blockNumber) {
+        try {
+            // Prepare the DATA packet to send
+            byte[] sendData = new byte[dataBlock.length + 4]; // Plus 4 for the opcode and block number
+            sendData[0] = 0;
+            sendData[1] = 3; // DATA opcode
+            sendData[2] = (byte) ((blockNumber >> 8) & 0xff); // High byte of block number
+            sendData[3] = (byte) (blockNumber & 0xff); // Low byte of block number
+            System.arraycopy(dataBlock, 0, sendData, 4, dataBlock.length);
+            
+            // Send the DATA packet
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, clientAddress);
+            sendSocket.send(sendPacket);
+
+            // Prepare for receiving ACK
+            byte[] ackBuf = new byte[4]; // Buffer for receiving ACKs
+            DatagramPacket ackPacket = new DatagramPacket(ackBuf, ackBuf.length);
+
+            // TODO: Implement timeout handling here. Set a timeout for receive operation.
+            // sendSocket.setSoTimeout(timeoutInMillis);
+
+            // Wait for ACK
+            sendSocket.receive(ackPacket);
+            
+            // Verify the ACK
+            if (ackBuf[1] != OP_ACK || ((ackBuf[2] & 0xff) << 8 | (ackBuf[3] & 0xff)) != blockNumber) {
+                System.err.println("Did not receive expected ACK for block " + blockNumber);
+                // TODO: Handle incorrect ACK or timeout, potentially with retransmission logic.
+                return false;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            // TODO: Handle timeout exception separately from other IO exceptions to decide on re-transmission.
+            return false; // Communication error
+        }
+
+        return true; // Block sent and correctly acknowledged
+    }
 }
