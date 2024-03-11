@@ -10,8 +10,8 @@ import java.net.SocketException;
 public class TFTPServer {
 	public static final int TFTPPORT = 4970;
 	public static final int BUFSIZE = 516;
-	public static final String READDIR = "/home/username/read/"; // custom address at your PC
-	public static final String WRITEDIR = "/home/username/write/"; // custom address at your PC
+	public static final String READDIR = "READDIR"; // custom address at your PC
+	public static final String WRITEDIR = "WRITEDIR"; // custom address at your PC
 	// OP codes
 	public static final int OP_RRQ = 1;
 	public static final int OP_WRQ = 2;
@@ -55,6 +55,7 @@ public class TFTPServer {
 				continue;
 
 			final StringBuffer requestedFile = new StringBuffer();
+			System.out.println("oldest: " + requestedFile);
 			final int reqtype = ParseRQ(buf, requestedFile);
 
 			new Thread() {
@@ -67,6 +68,7 @@ public class TFTPServer {
 
 						System.out.printf("%s request for %s from %s using port %d\n",
 								(reqtype == OP_RRQ) ? "Read" : "Write",
+								requestedFile, // Assuming you want to print the file requested.
 								clientAddress.getHostName(), clientAddress.getPort());
 
 						// Read request
@@ -103,8 +105,8 @@ public class TFTPServer {
 
 		// Get client address and port from the packet
 
-		byte[] receiveBuffer = new byte[516]; // Adjust size if needed
-		DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+		DatagramPacket receivePacket = new DatagramPacket(buf, buf.length);
+
 
 		try {
 			// Wait for an incoming packet
@@ -127,20 +129,6 @@ public class TFTPServer {
 		return null;
 	}
 
-	/**
-	 * Parses the request in buf to retrieve the type of request and requestedFile
-	 * 
-	 * @param buf           (received request)
-	 * @param requestedFile (name of file to read/write)
-	 * @return opcode (request type: RRQ or WRQ)
-	 */
-	private int ParseRQ(byte[] buf, StringBuffer requestedFile) {
-		// See "TFTP Formats" in TFTP specification for the RRQ/WRQ request contents
-		// Dummy implementation for compilation. Replace with actual logic.
-		int opcode = OP_ERR; // Just a placeholder value.
-		// Parse request here...
-		return opcode;
-	}
 
 	/**
 	 * Handles RRQ and WRQ requests 
