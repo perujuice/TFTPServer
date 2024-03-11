@@ -1,11 +1,15 @@
 package assignment3;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class TFTPServer {
 	public static final int TFTPPORT = 4970;
@@ -74,12 +78,12 @@ public class TFTPServer {
 						// Read request
 						if (reqtype == OP_RRQ) {
 							requestedFile.insert(0, READDIR);
-							HandleRQ(sendSocket, requestedFile.toString(), OP_RRQ);
+							HandleRQ(clientAddress, sendSocket, requestedFile.toString(), OP_RRQ);
 						}
 						// Write request
 						else {
 							requestedFile.insert(0, WRITEDIR);
-							HandleRQ(sendSocket, requestedFile.toString(), OP_WRQ);
+							HandleRQ(clientAddress, sendSocket, requestedFile.toString(), OP_WRQ);
 						}
 						sendSocket.close();
 					} catch (SocketException e) {
@@ -99,28 +103,14 @@ public class TFTPServer {
 	 * @return socketAddress (the socket address of the client)
 	 */
 	private InetSocketAddress receiveFrom(DatagramSocket socket, byte[] buf) {
-		// Create datagram packet
-
-		// Receive packet
-
-		// Get client address and port from the packet
 
 		DatagramPacket receivePacket = new DatagramPacket(buf, buf.length);
-
-
 		try {
 			// Wait for an incoming packet
 			socket.receive(receivePacket);
-
-			// Extract the client's address and port from the received packet
 			SocketAddress socketAddress = receivePacket.getSocketAddress();
-
-			// Optionally, convert to InetSocketAddress if needed for more specific methods
 			InetSocketAddress inetSocketAddress = (InetSocketAddress) socketAddress;
-
 			System.out.println(socketAddress);
-
-			// Now you can use inetSocketAddress or clientAddress as needed
 			return inetSocketAddress;
 
 		} catch (IOException e) {
@@ -129,6 +119,41 @@ public class TFTPServer {
 		return null;
 	}
 
+	/**
+	 * Parses the request in buf to retrieve the type of request and requestedFile
+	 * 
+	 * @param buf           (received request)
+	 * @param requestedFile (name of file to read/write)
+	 * @return opcode (request type: RRQ or WRQ)
+	 */
+	private int ParseRQ(byte[] buf, StringBuffer requestedFile) {
+		int opcode = -1; // Initialize with an invalid opcode
+
+		try {
+			// Extract the opcode from the first 2 bytes
+			opcode = ((buf[0] & 0xff) << 8) | (buf[1] & 0xff);
+	
+			// Check if it's RRQ or WRQ
+			if (opcode == OP_RRQ || opcode == OP_WRQ) {
+				// Find the end of the filename string (terminated by a 0 byte)
+				int i = 2;
+				while (buf[i] != 0) i++;
+				// Extract the filename
+				String filename = new String(buf, 2, i - 2, "UTF-8");
+				// Update requestedFile
+				requestedFile.setLength(0); // Clear any existing content
+				requestedFile.append("/" + filename);
+			} else {
+				// Invalid or unrecognized opcode
+				opcode = OP_ERR;
+			}
+		} catch (Exception e) {
+			System.err.println("Error parsing request: " + e.getMessage());
+			opcode = OP_ERR; // Set to error opcode in case of exception
+		}
+	
+		return opcode; // Return the opcode (RRQ, WRQ, or ERR in case of failure)
+	}
 
 	/**
 	 * Handles RRQ and WRQ requests 
@@ -137,12 +162,12 @@ public class TFTPServer {
 	 * @param requestedFile (name of file to read/write)
 	 * @param opcode (RRQ or WRQ)
 	 */
-	private void HandleRQ(DatagramSocket sendSocket, String requestedFile, int opcode) 
+	private void HandleRQ(InetSocketAddress clientAddress, DatagramSocket sendSocket, String requestedFile, int opcode) 
 	{		
 		String params = ""; // Placeholder for compilation
 		if (opcode == OP_RRQ) {
 			// Placeholder implementation
-			boolean result = send_DATA_receive_ACK(params);
+			boolean result = send_DATA_receive_ACK(sendSocket, clientAddress, requestedFile);
 		} else if (opcode == OP_WRQ) {
 			// Placeholder implementation
 			boolean result = receive_DATA_send_ACK(params);
@@ -155,12 +180,15 @@ public class TFTPServer {
 	/**
 	To be implemented
 	*/
-	private boolean send_DATA_receive_ACK(String params)
-	{return true;}
+	private boolean send_DATA_receive_ACK(DatagramSocket sendSocket, InetSocketAddress clientAddress, String requestedFile) {
+
+	}
 
 	private boolean receive_DATA_send_ACK(String params)
 	{return true;}
 
 	private void send_ERR(String params)
 	{}
+
+
 }
