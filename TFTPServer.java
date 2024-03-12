@@ -215,6 +215,7 @@ public class TFTPServer {
 			return true;
 		} catch (IOException e) {
 			// Log any IO Exceptions and return false
+			send_ERR(sendSocket, clientAddress, 1);
 			e.printStackTrace();
 			return false;
 		}
