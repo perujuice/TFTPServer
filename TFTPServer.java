@@ -172,7 +172,7 @@ public class TFTPServer {
 			boolean result = send_DATA_receive_ACK(sendSocket, clientAddress, requestedFile);
 		} else if (opcode == OP_WRQ) {
 			// Placeholder implementation
-			boolean result = receive_DATA_send_ACK(sendSocket, clientAddress);
+			boolean result = receive_DATA_send_ACK(sendSocket, clientAddress, requestedFile);
 		} else {
 			System.err.println("Invalid request. Sending an error packet.");
 			send_ERR(params);
