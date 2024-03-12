@@ -210,34 +210,52 @@ public class TFTPServer {
 		}
 	}
 
-	private boolean receive_DATA_send_ACK(DatagramSocket receiveSocket, InetSocketAddress clientAddress) {
+	private boolean receive_DATA_send_ACK(DatagramSocket socket, InetSocketAddress clientAddress, String filename) {
+		List<byte[]> receivedData = new ArrayList<>();
+		int expectedBlockNumber = 1;
+		boolean transferComplete = false;
+
+		// for first ack
 		try {
-			// Prepare for receiving DATA
-			byte[] dataBuf = new byte[512]; // Buffer for receiving DATA packets, 512 for data + 4 for headers
-			DatagramPacket dataPacket = new DatagramPacket(dataBuf, dataBuf.length);
-	
-			// Receive DATA
-			receiveSocket.receive(dataPacket);
-	
-			// Extract block number
-			int blockNumber = ((dataBuf[2] & 0xff) << 8) | (dataBuf[3] & 0xff);
-	
-			// Prepare the ACK packet to send
-			byte[] ackData = new byte[4]; // 4 for the opcode and block number
-			ackData[0] = 0;
-			ackData[1] = 4; // ACK opcode
-			ackData[2] = (byte) ((blockNumber >> 8) & 0xff); // High byte of block number
-			ackData[3] = (byte) (blockNumber & 0xff); // Low byte of block number
-	
-			// Send the ACK packet
-			DatagramPacket ackPacket = new DatagramPacket(ackData, ackData.length, clientAddress);
-			receiveSocket.send(ackPacket);
+			sendAck(socket, clientAddress, 0);
+			System.out.println("ack" + 0 + "sent");
 		} catch (IOException e) {
-			e.printStackTrace();
-			return false; // Communication error
+			System.err.println("Failed to send initial ACK: " + e.getMessage());
+			return false; // Or appropriate error handling
 		}
+
+		while (!transferComplete) {
+			try {
+				byte[] dataBlock = receiveAndStoreBlock(socket, expectedBlockNumber);
+				if (dataBlock != null) {
+					receivedData.add(dataBlock);
+					expectedBlockNumber++;
 	
-		return true; // DATA received and ACK sent
+					// Send ACK for the received block
+					try {
+						sendAck(socket, clientAddress, expectedBlockNumber - 1);
+					} catch (IOException e) {
+						System.err.println("Failed to send ACK for block " + (expectedBlockNumber - 1) + ": " + e.getMessage());
+						return false; // Or appropriate error handling
+					}	
+					if (dataBlock.length < 512) { // Check if this is the last block
+						transferComplete = true;
+					}
+				} else {
+					// send error and terminate
+				}
+			} catch (IOException e) {
+				System.err.println("Failed to receive or store block: " + e.getMessage());
+				return false; // Or appropriate error handling
+			}
+			
+		}
+		try {
+			writeDataToFile(receivedData, filename);
+		} catch (IOException e) {
+			System.err.println("Failed to write data to file: " + e.getMessage());
+			return false; // Or appropriate error handling
+		}		return true;
 	}
 
 	/**
