@@ -299,4 +299,15 @@ public class TFTPServer {
 
         return true; // Block sent and correctly acknowledged
     }
+
+	private void sendAck(DatagramSocket socket, InetSocketAddress clientAddress, int blockNumber) throws IOException {
+        byte[] ackPacket = new byte[4];
+        ackPacket[0] = 0;
+        ackPacket[1] = 4; // Opcode for ACK
+        ackPacket[2] = (byte) (blockNumber >> 8);
+        ackPacket[3] = (byte) (blockNumber);
+
+        DatagramPacket packet = new DatagramPacket(ackPacket, ackPacket.length, clientAddress.getAddress(), clientAddress.getPort());
+        socket.send(packet);
+    }
 }
