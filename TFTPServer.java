@@ -202,7 +202,7 @@ public class TFTPServer {
 			// Send each block and wait for ACK
 			for (int i = 0; i < fileBlocks.length; i++) {
 				// Send the current block and wait for an ACK
-				boolean ackReceived = sendBlockAndWaitForAck(sendSocket, clientAddress, fileBlocks[i], i + 1);
+				boolean ackReceived = sendBlockAndWaitForAck(sendSocket, clientAddress, fileBlocks[i], i + 1, 3000);
 				System.out.println("sent block");
 				if (!ackReceived) {
 					// If ACK wasn't received, log the error and return false
@@ -355,45 +355,43 @@ public class TFTPServer {
 	 * @param blockNumber   The block number for the current data block.
 	 * @return true if the block was sent and acknowledged, false otherwise.
 	 */
-	private boolean sendBlockAndWaitForAck(DatagramSocket sendSocket, InetSocketAddress clientAddress, byte[] dataBlock,
-			int blockNumber) {
-		try {
-			// Prepare the DATA packet to send
-			byte[] sendData = new byte[dataBlock.length + 4]; // Plus 4 for the opcode and block number
-			sendData[0] = 0;
-			sendData[1] = 3; // DATA opcode
-			sendData[2] = (byte) ((blockNumber >> 8) & 0xff); // High byte of block number
-			sendData[3] = (byte) (blockNumber & 0xff); // Low byte of block number
-			System.arraycopy(dataBlock, 0, sendData, 4, dataBlock.length);
-
-			// Send the DATA packet
-			DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, clientAddress);
-			sendSocket.send(sendPacket);
-
-			// Prepare for receiving ACK
-			byte[] ackBuf = new byte[4]; // Buffer for receiving ACKs
-			DatagramPacket ackPacket = new DatagramPacket(ackBuf, ackBuf.length);
-
-			// TODO: Implement timeout handling here. Set a timeout for receive operation.
-			// sendSocket.setSoTimeout(timeoutInMillis);
-
-			// Wait for ACK
-			sendSocket.receive(ackPacket);
-
-			// Verify the ACK
-			if (ackBuf[1] != OP_ACK || ((ackBuf[2] & 0xff) << 8 | (ackBuf[3] & 0xff)) != blockNumber) {
-				System.err.println("Did not receive expected ACK for block " + blockNumber);
-				// TODO: Handle incorrect ACK or timeout, potentially with retransmission logic.
-				return false;
+	private boolean sendBlockAndWaitForAck(DatagramSocket sendSocket, InetSocketAddress clientAddress, byte[] dataBlock, int blockNumber, int timeout) throws IOException {
+		byte[] sendData = new byte[dataBlock.length + 4]; // Plus 4 for the opcode and block number
+		sendData[0] = 0;
+		sendData[1] = OP_DAT; // DATA opcode
+		sendData[2] = (byte) ((blockNumber >> 8) & 0xff); // High byte of block number
+		sendData[3] = (byte) (blockNumber & 0xff); // Low byte of block number
+		System.arraycopy(dataBlock, 0, sendData, 4, dataBlock.length);
+	
+		byte[] ackBuf = new byte[4]; // Buffer for receiving ACKs
+		DatagramPacket ackPacket = new DatagramPacket(ackBuf, ackBuf.length);
+	
+		sendSocket.setSoTimeout(timeout);
+	
+		boolean ackReceived = false;
+		while (!ackReceived) {
+			try {
+				// Sending packet
+				System.out.println("Sending packet for block number " + blockNumber);
+				DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, clientAddress);
+				sendSocket.send(sendPacket);
+	
+				// Attempting to receive ACK
+				sendSocket.receive(ackPacket);
+	
+				// Check if the received packet is an ACK for the correct block
+				if (ackBuf[1] == OP_ACK && ((ackBuf[2] & 0xff) << 8 | (ackBuf[3] & 0xff)) == blockNumber) {
+					System.out.println("ACK received for block number " + blockNumber);
+					ackReceived = true;
+				}
+			} catch (java.net.SocketTimeoutException e) {
+				// Handle the timeout specifically
+				System.out.println("Timeout waiting for ACK for block number " + blockNumber + ", resending packet.");
+				// The packet will be resent on the next loop iteration
 			}
-		} catch (IOException e) {
-			e.printStackTrace();
-			// TODO: Handle timeout exception separately from other IO exceptions to decide
-			// on re-transmission.
-			return false; // Communication error
 		}
-
-		return true; // Block sent and correctly acknowledged
+	
+		return ackReceived;
 	}
 
 	private void sendAck(DatagramSocket socket, InetSocketAddress clientAddress, int blockNumber) throws IOException {
@@ -474,4 +472,14 @@ public class TFTPServer {
 			e.printStackTrace();
 		}
     }
+
+	private boolean isAckForBlock(byte[] ackData, int blockNumber) {
+		if (ackData.length != 4 || ackData[1] != OP_ACK) {
+			return false;
+		}
+		int receivedBlockNumber = ((ackData[2] & 0xff) << 8) | (ackData[3] & 0xff);
+		return receivedBlockNumber == blockNumber;
+	}
 }
+
+
