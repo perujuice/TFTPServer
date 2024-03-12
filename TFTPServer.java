@@ -2,6 +2,7 @@ package assignment3;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -401,5 +402,24 @@ public class TFTPServer {
 
         DatagramPacket packet = new DatagramPacket(ackPacket, ackPacket.length, clientAddress.getAddress(), clientAddress.getPort());
         socket.send(packet);
+    }
+
+	/**
+     * Writes the contents of a list of byte arrays to a file.
+     *
+     * @param receivedData The list of byte arrays to write.
+     * @param requestedFile The path and name of the file where the data should be written.
+     * @throws IOException If an error occurs during file writing.
+     */
+    public void writeDataToFile(List<byte[]> receivedData, String requestedFile) throws IOException {
+        try (FileOutputStream fos = new FileOutputStream(requestedFile)) {
+            for (byte[] dataBlock : receivedData) {
+                fos.write(dataBlock);
+				System.out.println("writing to: " + requestedFile);
+            }
+        }
+		catch (IOException e) {
+			e.printStackTrace();
+		}
     }
 }
