@@ -203,7 +203,6 @@ public class TFTPServer {
 			for (int i = 0; i < fileBlocks.length; i++) {
 				// Send the current block and wait for an ACK
 				boolean ackReceived = sendBlockAndWaitForAck(sendSocket, clientAddress, fileBlocks[i], i + 1, 3000);
-				System.out.println("sent block");
 				if (!ackReceived) {
 					// If ACK wasn't received, log the error and return false
 					System.err.println("Failed to receive ACK for block " + (i + 1));
@@ -222,6 +221,11 @@ public class TFTPServer {
 	}
 
 	private boolean receive_DATA_send_ACK(DatagramSocket socket, InetSocketAddress clientAddress, String filename) {
+		File file = new File(WRITEDIR + filename);
+		if (file.exists()) {
+			send_ERR(socket, clientAddress, 6); // Error code 6 for File already exists
+			return false;
+		}
 		List<byte[]> receivedData = new ArrayList<>();
 		int expectedBlockNumber = 1;
 		boolean transferComplete = false;
@@ -406,8 +410,7 @@ public class TFTPServer {
 		socket.send(packet);
 	}
 
-	// commit 1 message [feat: method for recieving a single block(accounted for
-	// timeout) ]
+
 	/**
 	 * Attempts to receive a block of data from the client. If the block number
 	 * matches the expected one,
@@ -420,11 +423,6 @@ public class TFTPServer {
 	 * @throws IOException If an I/O error occurs.
 	 */
 	public byte[] receiveAndStoreBlock(DatagramSocket socket, int expectedBlockNumber) throws IOException {
-		// Set the socket timeout for receive operation.
-		// This should be set according to your network's characteristics and the
-		// expected response times.
-		// Comment: Set socket timeout here, before entering a potential blocking
-		// operation
 		socket.setSoTimeout(10000); // Timeout in milliseconds (10 seconds)
 
 		byte[] buf = new byte[BUFSIZE];
@@ -444,14 +442,9 @@ public class TFTPServer {
 				return dataBlock; // Return the data portion of the block
 			}
 		} catch (IOException e) {
-			// Handle timeout or other IO exceptions here.
-			// For a timeout, you might want to log the event, alert the user, or attempt a
-			// retry.
+
 			throw e;
 		}
-
-		// If the block number is not what was expected or a timeout occurred, return
-		// null
 		return null;
 	}
 	/**
@@ -472,14 +465,6 @@ public class TFTPServer {
 			e.printStackTrace();
 		}
     }
-
-	private boolean isAckForBlock(byte[] ackData, int blockNumber) {
-		if (ackData.length != 4 || ackData[1] != OP_ACK) {
-			return false;
-		}
-		int receivedBlockNumber = ((ackData[2] & 0xff) << 8) | (ackData[3] & 0xff);
-		return receivedBlockNumber == blockNumber;
-	}
 }
 
 
