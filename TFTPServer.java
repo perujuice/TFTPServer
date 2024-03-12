@@ -80,12 +80,15 @@ public class TFTPServer {
 						if (reqtype == OP_RRQ) {
 							requestedFile.insert(0, READDIR);
 							HandleRQ(clientAddress, sendSocket, requestedFile.toString(), OP_RRQ);
-						}
+						} else if (reqtype == OP_ERR) {
+							send_ERR(sendSocket, clientAddress);
+						} 
 						// Write request
 						else {
 							requestedFile.insert(0, READDIR);
 							HandleRQ(clientAddress, sendSocket, requestedFile.toString(), OP_WRQ);
 						}
+						
 						sendSocket.close();
 					} catch (SocketException e) {
 						e.printStackTrace();
@@ -180,7 +183,7 @@ public class TFTPServer {
 			boolean result = receive_DATA_send_ACK(sendSocket, clientAddress, requestedFile);
 		} else {
 			System.err.println("Invalid request. Sending an error packet.");
-			send_ERR(params);
+			send_ERR(sendSocket, clientAddress);
 		}
 	}
 
@@ -265,7 +268,30 @@ public class TFTPServer {
 		}		return true;
 	}
 
-	private void send_ERR(String params) {
+	private void send_ERR(DatagramSocket socket, InetSocketAddress clientAddress) {
+		byte[] errPacket = new byte[BUFSIZE];
+		int errorCode = 4; 
+		String errMsg = "Error message"; // Example error message
+		int offset = 4; // Starting offset after opcode and error code
+	
+		// Error opcode
+		errPacket[0] = 0;
+		errPacket[1] = OP_ERR;
+		// Error code
+		errPacket[2] = (byte) ((errorCode >> 8) & 0xFF);
+		errPacket[3] = (byte) (errorCode & 0xFF);
+		// Error message
+		byte[] errMsgBytes = errMsg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+		System.arraycopy(errMsgBytes, 0, errPacket, offset, errMsgBytes.length);
+		offset += errMsgBytes.length;
+		errPacket[offset] = 0; // Null terminator for the string
+	
+		try {
+			DatagramPacket packet = new DatagramPacket(errPacket, offset + 1, clientAddress.getAddress(), clientAddress.getPort());
+			socket.send(packet);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	/**
