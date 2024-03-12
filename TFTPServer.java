@@ -171,7 +171,7 @@ public class TFTPServer {
 			boolean result = send_DATA_receive_ACK(sendSocket, clientAddress, requestedFile);
 		} else if (opcode == OP_WRQ) {
 			// Placeholder implementation
-			boolean result = receive_DATA_send_ACK(params);
+			boolean result = receive_DATA_send_ACK(sendSocket, clientAddress);
 		} else {
 			System.err.println("Invalid request. Sending an error packet.");
 			send_ERR(params);
@@ -210,8 +210,82 @@ public class TFTPServer {
 		}
 	}
 
-	private boolean receive_DATA_send_ACK(String params)
-	{return true;}
+	private boolean receive_DATA_send_ACK(DatagramSocket receiveSocket, InetSocketAddress clientAddress) {
+		try {
+			// Prepare for receiving DATA
+			byte[] dataBuf = new byte[512]; // Buffer for receiving DATA packets, 512 for data + 4 for headers
+			DatagramPacket dataPacket = new DatagramPacket(dataBuf, dataBuf.length);
+	
+			// Receive DATA
+			receiveSocket.receive(dataPacket);
+	
+			// Extract block number
+			int blockNumber = ((dataBuf[2] & 0xff) << 8) | (dataBuf[3] & 0xff);
+	
+			// Prepare the ACK packet to send
+			byte[] ackData = new byte[4]; // 4 for the opcode and block number
+			ackData[0] = 0;
+			ackData[1] = 4; // ACK opcode
+			ackData[2] = (byte) ((blockNumber >> 8) & 0xff); // High byte of block number
+			ackData[3] = (byte) (blockNumber & 0xff); // Low byte of block number
+	
+			// Send the ACK packet
+			DatagramPacket ackPacket = new DatagramPacket(ackData, ackData.length, clientAddress);
+			receiveSocket.send(ackPacket);
+		} catch (IOException e) {
+			e.printStackTrace();
+			return false; // Communication error
+		}
+	
+		return true; // DATA received and ACK sent
+	}
+
+	/**
+	 * Attempts to receive a block of data from the client. If the block number
+	 * matches the expected one,
+	 * it returns the data portion of the block. Otherwise, it returns null.
+	 * 
+	 * @param socket              The DatagramSocket to receive the data.
+	 * @param expectedBlockNumber The expected block number to receive.
+	 * @return The data portion of the received block as a byte array, or null if
+	 *         the block number does not match.
+	 * @throws IOException If an I/O error occurs.
+	 */
+	public byte[] receiveAndStoreBlock(DatagramSocket socket, int expectedBlockNumber) throws IOException {
+		// Set the socket timeout for receive operation.
+		// This should be set according to your network's characteristics and the
+		// expected response times.
+		// Comment: Set socket timeout here, before entering a potential blocking
+		// operation
+		socket.setSoTimeout(10000); // Timeout in milliseconds (10 seconds)
+
+		byte[] buf = new byte[BUFSIZE];
+		DatagramPacket packet = new DatagramPacket(buf, buf.length);
+
+		try {
+			socket.receive(packet); // Attempt to receive DATA packet, may throw SocketTimeoutException
+
+			// Extract block number from received packet
+			int blockNumber = ((buf[2] & 0xff) << 8) | (buf[3] & 0xff);
+
+			if (blockNumber == expectedBlockNumber) {
+				// Extract the data portion of the packet (excluding the 4-byte header)
+				byte[] dataBlock = new byte[packet.getLength() - 4];
+				System.arraycopy(buf, 4, dataBlock, 0, packet.getLength() - 4);
+
+				return dataBlock; // Return the data portion of the block
+			}
+		} catch (IOException e) {
+			// Handle timeout or other IO exceptions here.
+			// For a timeout, you might want to log the event, alert the user, or attempt a
+			// retry.
+			throw e;
+		}
+
+		// If the block number is not what was expected or a timeout occurred, return
+		// null
+		return null;
+	}
 
 	private void send_ERR(String params)
 	{}
