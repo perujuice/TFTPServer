@@ -81,7 +81,7 @@ public class TFTPServer {
 							requestedFile.insert(0, READDIR);
 							HandleRQ(clientAddress, sendSocket, requestedFile.toString(), OP_RRQ);
 						} else if (reqtype == OP_ERR) {
-							send_ERR(sendSocket, clientAddress);
+							HandleRQ(clientAddress, sendSocket, requestedFile.toString(), OP_ERR);
 						} 
 						// Write request
 						else {
@@ -183,7 +183,7 @@ public class TFTPServer {
 			boolean result = receive_DATA_send_ACK(sendSocket, clientAddress, requestedFile);
 		} else {
 			System.err.println("Invalid request. Sending an error packet.");
-			send_ERR(sendSocket, clientAddress);
+			send_ERR(sendSocket, clientAddress, 4);
 		}
 	}
 
@@ -268,11 +268,25 @@ public class TFTPServer {
 		}		return true;
 	}
 
-	private void send_ERR(DatagramSocket socket, InetSocketAddress clientAddress) {
+	private void send_ERR(DatagramSocket socket, InetSocketAddress clientAddress, int errorCode) {
 		byte[] errPacket = new byte[BUFSIZE];
-		int errorCode = 4; 
-		String errMsg = "Error message"; // Example error message
-		int offset = 4; // Starting offset after opcode and error code
+		String errMsg; // Error message based on errorCode
+	
+		switch (errorCode) {
+			case 1: // File not found
+				errMsg = "File not found";
+				break;
+			case 4: // Illegal TFTP operation
+				errMsg = "Illegal TFTP operation";
+				break;
+			case 6: // File already exists
+				errMsg = "File already exists";
+				break;
+			// Add cases for other error codes as needed
+			default:
+				errMsg = "Unknown error";
+				break;
+		}
 	
 		// Error opcode
 		errPacket[0] = 0;
@@ -282,14 +296,14 @@ public class TFTPServer {
 		errPacket[3] = (byte) (errorCode & 0xFF);
 		// Error message
 		byte[] errMsgBytes = errMsg.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-		System.arraycopy(errMsgBytes, 0, errPacket, offset, errMsgBytes.length);
-		offset += errMsgBytes.length;
-		errPacket[offset] = 0; // Null terminator for the string
+		System.arraycopy(errMsgBytes, 0, errPacket, 4, errMsgBytes.length);
+		errPacket[4 + errMsgBytes.length] = 0; // Null terminator for the string
 	
 		try {
-			DatagramPacket packet = new DatagramPacket(errPacket, offset + 1, clientAddress.getAddress(), clientAddress.getPort());
+			DatagramPacket packet = new DatagramPacket(errPacket, 4 + errMsgBytes.length + 1, clientAddress.getAddress(), clientAddress.getPort());
 			socket.send(packet);
 		} catch (IOException e) {
+			System.err.println("Error sending the error packet: " + e.getMessage());
 			e.printStackTrace();
 		}
 	}
